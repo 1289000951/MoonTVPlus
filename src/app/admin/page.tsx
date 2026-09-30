@@ -16196,10 +16196,12 @@ const AIConfigComponent = ({
   const [enableVideoCardEntry, setEnableVideoCardEntry] = useState(true);
   const [enablePlayPageEntry, setEnablePlayPageEntry] = useState(true);
   const [enableAIComments, setEnableAIComments] = useState(false);
+  const [enableAICommentsToolMode, setEnableAICommentsToolMode] =
+    useState(false);
 
-  // 高级设置
-  const [temperature, setTemperature] = useState(0.7);
-  const [maxTokens, setMaxTokens] = useState(1000);
+  // 高级设置（Temperature / MaxTokens 未设置时留空，实际调用由代码兜底默认值）
+  const [temperature, setTemperature] = useState<number | ''>('');
+  const [maxTokens, setMaxTokens] = useState<number | ''>('');
   const [systemPrompt, setSystemPrompt] = useState('');
   const [enableStreaming, setEnableStreaming] = useState(true);
 
@@ -16234,8 +16236,11 @@ const AIConfigComponent = ({
       setEnableVideoCardEntry(config.AIConfig.EnableVideoCardEntry !== false);
       setEnablePlayPageEntry(config.AIConfig.EnablePlayPageEntry !== false);
       setEnableAIComments(config.AIConfig.EnableAIComments || false);
-      setTemperature(config.AIConfig.Temperature ?? 0.7);
-      setMaxTokens(config.AIConfig.MaxTokens ?? 1000);
+      setEnableAICommentsToolMode(
+        config.AIConfig.EnableAICommentsToolMode || false
+      );
+      setTemperature(config.AIConfig.Temperature ?? '');
+      setMaxTokens(config.AIConfig.MaxTokens ?? '');
       setSystemPrompt(config.AIConfig.SystemPrompt || '');
       setEnableStreaming(config.AIConfig.EnableStreaming !== false);
       setDefaultMessageNoVideo(config.AIConfig.DefaultMessageNoVideo || '');
@@ -16277,8 +16282,9 @@ const AIConfigComponent = ({
             EnableVideoCardEntry: enableVideoCardEntry,
             EnablePlayPageEntry: enablePlayPageEntry,
             EnableAIComments: enableAIComments,
-            Temperature: temperature,
-            MaxTokens: maxTokens,
+            EnableAICommentsToolMode: enableAICommentsToolMode,
+            Temperature: temperature === '' ? undefined : temperature,
+            MaxTokens: maxTokens === '' ? undefined : maxTokens,
             SystemPrompt: systemPrompt,
             EnableStreaming: enableStreaming,
             DefaultMessageNoVideo: defaultMessageNoVideo,
@@ -16808,6 +16814,13 @@ const AIConfigComponent = ({
             state: enableAIComments,
             setState: setEnableAIComments,
           },
+          {
+            key: 'aicommentstoolmode',
+            label: 'AI评论工具式调用',
+            desc: '开启后评论生成走工具式调用，模型自主联网/查豆瓣/TMDB 获取真实评价（需模型支持 function calling；关闭则单轮直调，联网仅预抓取参考）',
+            state: enableAICommentsToolMode,
+            setState: setEnableAICommentsToolMode,
+          },
         ].map((item) => (
           <div
             key={item.key}
@@ -16842,19 +16855,23 @@ const AIConfigComponent = ({
         <div className='mt-4 space-y-4'>
           <div>
             <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-              Temperature ({temperature})
+              Temperature ({temperature === '' ? '未设置' : temperature})
             </label>
             <input
               type='range'
-              min='0'
+              min='-0.1'
               max='2'
               step='0.1'
-              value={temperature}
-              onChange={(e) => setTemperature(parseFloat(e.target.value))}
+              value={temperature === '' ? -0.1 : temperature}
+              onChange={(e) => {
+                const v = parseFloat(e.target.value);
+                // 滑到最左（-0.1）视为「不设置」，保留 0 为可选真实值
+                setTemperature(v < 0 ? '' : v);
+              }}
               className='w-full'
             />
             <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
-              控制回复的创造性，0=保守，2=创造
+              控制回复的创造性，0=保守，2=创造；滑到最左则不设置
             </p>
           </div>
 
@@ -16864,10 +16881,19 @@ const AIConfigComponent = ({
             </label>
             <input
               type='number'
+              min='1'
               value={maxTokens}
-              onChange={(e) => setMaxTokens(parseInt(e.target.value) || 1000)}
+              placeholder='留空则不设置'
+              onChange={(e) => {
+                const v = e.target.value;
+                const n = parseInt(v, 10);
+                setMaxTokens(v === '' || Number.isNaN(n) ? '' : n);
+              }}
               className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100'
             />
+            <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+              留空则不设置
+            </p>
           </div>
 
           <div>
