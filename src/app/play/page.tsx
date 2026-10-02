@@ -305,6 +305,14 @@ function PlayPageClient() {
         ? '🎬 正在获取视频详情...'
         : '🔍 正在搜索播放源...'
   );
+  // 加载步骤模型的入口参数只在首帧定格：initAll 拿到详情后会把 source/id 写回 URL、
+  // 删掉 prefer（见 ~5814），若让步骤跟着 searchParams 现算，方格会在「就绪」那一刻
+  // 从 搜索/优选/就绪(3 格) 塌成 详情/就绪(2 格)。冻结进入时的参数避免这次切换。
+  const [initialLoadParams] = useState(() => ({
+    source: searchParams.get('source'),
+    id: searchParams.get('id'),
+    prefer: searchParams.get('prefer'),
+  }));
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<SearchResult | null>(null);
 
@@ -10351,10 +10359,11 @@ function PlayPageClient() {
   }, []);
 
   // 初始化加载样式的步骤模型（说明见文件顶部 LOADING_STEP_META 上方注释）
+  // 入口参数用首帧定格的 initialLoadParams，不读 searchParams：详见其声明处注释。
   const loadEntry: LoadingStepKey =
-    searchParams.get('source') === 'directplay'
+    initialLoadParams.source === 'directplay'
       ? 'direct'
-      : searchParams.get('source') && searchParams.get('id')
+      : initialLoadParams.source && initialLoadParams.id
         ? 'detail'
         : 'search';
   // 优选是否真的会跑：只有开了优选开关，且是搜索入口或带 prefer 标记时才有这一格
@@ -10363,7 +10372,7 @@ function PlayPageClient() {
   const willPrefer =
     optimizationEnabled &&
     loadEntry !== 'direct' &&
-    (loadEntry === 'search' || searchParams.get('prefer') === 'true');
+    (loadEntry === 'search' || initialLoadParams.prefer === 'true');
   const loadSteps: LoadingStepKey[] =
     loadEntry === 'direct'
       ? ['direct', 'ready']
