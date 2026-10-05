@@ -260,7 +260,13 @@ const AlertModal = ({
                 确定
               </button>
             )
-          ) : null}
+          ) : timer ? null : (
+            // 既没有确认框、也没有自动关闭定时器时兜底一个关闭按钮，
+            // 否则这类提示弹窗没有任何关闭途径（点背景也不关）。
+            <button onClick={onClose} className={buttonStyles.primary}>
+              确定
+            </button>
+          )}
         </div>
       </div>
     </div>,
