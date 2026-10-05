@@ -706,6 +706,11 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
   if (!adminConfig.LiveConfig || !Array.isArray(adminConfig.LiveConfig)) {
     adminConfig.LiveConfig = [];
   }
+  // 区分「老库没有这个字段」(undefined → 需从配置文件兜底补齐)
+  // 与「后台显式清空」(空数组 → 尊重用户的选择，不再回填)
+  const specialSourceApisWasAbsent = !Array.isArray(
+    adminConfig.SpecialSourceApis
+  );
   if (
     !adminConfig.SpecialSourceApis ||
     !Array.isArray(adminConfig.SpecialSourceApis)
@@ -790,10 +795,10 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
   });
 
   const validSourceKeys = new Set(adminConfig.SourceConfig.map((source) => source.key));
-  // 配置文件是采集源的权威来源，special_source_apis 同理：名单为空时从 ConfigFile 补齐。
-  // 老库升级上来时库里没有这个字段，只靠后台「配置文件」保存那一次才会写入，
-  // 漏了就变成"一个特殊源都没标记"——隔离对普通入口直接静默失效。
-  if (adminConfig.SpecialSourceApis.length === 0) {
+  // 配置文件是采集源的权威来源，special_source_apis 同理：**老库缺字段时**从 ConfigFile 补齐。
+  // 只在字段缺失时回填——否则后台把特殊源全部取消勾选（存成空数组）后，
+  // 每次 getConfig() 都会被配置文件又捞回来，等于关不掉。
+  if (specialSourceApisWasAbsent) {
     adminConfig.SpecialSourceApis = readSpecialSourceApisFromFile(
       adminConfig.ConfigFile
     );

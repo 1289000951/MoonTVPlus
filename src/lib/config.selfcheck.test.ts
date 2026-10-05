@@ -35,11 +35,11 @@ describe('configSelfCheck 特殊源名单兜底', () => {
     expect((config.SpecialSourceApis ?? []).sort()).toEqual(['r18a', 'r18b']);
   });
 
-  it('名单为空数组时同样补齐', () => {
+  it('后台显式清空（空数组）时不再被配置文件回填', () => {
     const config = configSelfCheck(
       makeConfig({ ConfigFile: fileWithSpecial, SpecialSourceApis: [] })
     );
-    expect((config.SpecialSourceApis ?? []).sort()).toEqual(['r18a', 'r18b']);
+    expect(config.SpecialSourceApis).toEqual([]);
   });
 
   it('库里已有名单时不被文件覆盖', () => {

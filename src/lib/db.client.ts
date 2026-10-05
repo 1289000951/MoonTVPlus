@@ -1751,85 +1751,88 @@ export async function isFavorited(
 }
 
 /**
- * 清空全部播放记录
- * 数据库存储模式下使用乐观更新：先更新缓存，再异步同步到数据库。
+ * 清空当前入口可见的播放记录：
+ * 普通入口只清普通源，/under 只清特殊源，另一侧的数据保留（与读路径隔离口径一致）。
  */
 export async function clearAllPlayRecords(): Promise<void> {
-  // 数据库存储模式：乐观更新策略（包括 redis 和 upstash）
-  if (STORAGE_TYPE !== 'localstorage') {
-    // 立即更新缓存
-    cacheManager.cachePlayRecords({});
+  if (STORAGE_TYPE === 'localstorage' && typeof window === 'undefined') return;
 
-    // 触发立即更新事件
-    window.dispatchEvent(
-      new CustomEvent('playRecordsUpdated', {
-        detail: {},
-      })
-    );
-
-    // 异步同步到数据库
-    try {
-      await fetchWithAuth(`/api/playrecords`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-      });
-    } catch (err) {
-      await handleDatabaseOperationFailure('playRecords', err);
-      triggerGlobalError('清空播放记录失败');
-      throw err;
-    }
-    return;
-  }
-
-  // localStorage 模式
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(PLAY_RECORDS_KEY);
-  window.dispatchEvent(
-    new CustomEvent('playRecordsUpdated', {
-      detail: {},
-    })
-  );
+  const raw = await getAllPlayRecordsRaw();
+  const visibleKeys = Object.keys(filterRecordsBySpecialSourceContext(raw));
+  // 复用批删：DB 模式一次请求、localStorage 模式一次落盘；无可见记录时自动 no-op
+  await deletePlayRecords(visibleKeys);
 }
 
 /**
- * 清空全部收藏
- * 数据库存储模式下使用乐观更新：先更新缓存，再异步同步到数据库。
+ * 批量删除收藏（按 source+id 组成的 key）。
+ * 与 deletePlayRecords 对称：DB 模式一次性乐观更新 + 一次 API 请求。
  */
-export async function clearAllFavorites(): Promise<void> {
-  // 数据库存储模式：乐观更新策略（包括 redis 和 upstash）
-  if (STORAGE_TYPE !== 'localstorage') {
-    // 立即更新缓存
-    cacheManager.cacheFavorites({});
+export async function deleteFavorites(keys: string[]): Promise<void> {
+  const uniqueKeys = Array.from(new Set(keys)).filter(Boolean);
+  if (uniqueKeys.length === 0) return;
 
-    // 触发立即更新事件
+  // 数据库存储模式：一次性乐观更新 + 一次 API 请求
+  if (STORAGE_TYPE !== 'localstorage') {
+    const cachedFavorites = cacheManager.getCachedFavorites() || {};
+    uniqueKeys.forEach((key) => {
+      delete cachedFavorites[key];
+    });
+    cacheManager.cacheFavorites(cachedFavorites);
+
     window.dispatchEvent(
       new CustomEvent('favoritesUpdated', {
-        detail: {},
+        detail: cachedFavorites,
       })
     );
 
-    // 异步同步到数据库
     try {
-      await fetchWithAuth(`/api/favorites`, {
+      await fetchWithAuth('/api/favorites', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keys: uniqueKeys }),
       });
     } catch (err) {
       await handleDatabaseOperationFailure('favorites', err);
-      triggerGlobalError('清空收藏失败');
+      triggerGlobalError('删除收藏失败');
       throw err;
     }
     return;
   }
 
-  // localStorage 模式
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(FAVORITES_KEY);
-  window.dispatchEvent(
-    new CustomEvent('favoritesUpdated', {
-      detail: {},
-    })
-  );
+  // localStorage 模式：一次性更新本地数据和事件
+  if (typeof window === 'undefined') {
+    console.warn('无法在服务端删除收藏到 localStorage');
+    return;
+  }
+
+  try {
+    const allFavorites = await getAllFavoritesRaw();
+    uniqueKeys.forEach((key) => {
+      delete allFavorites[key];
+    });
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify(allFavorites));
+    window.dispatchEvent(
+      new CustomEvent('favoritesUpdated', {
+        detail: allFavorites,
+      })
+    );
+  } catch (err) {
+    console.error('批量删除收藏失败:', err);
+    triggerGlobalError('删除收藏失败');
+    throw err;
+  }
+}
+
+/**
+ * 清空当前入口可见的收藏：
+ * 普通入口只清普通源，/under 只清特殊源，另一侧的数据保留。
+ */
+export async function clearAllFavorites(): Promise<void> {
+  if (STORAGE_TYPE === 'localstorage' && typeof window === 'undefined') return;
+
+  const raw = await getAllFavoritesRaw();
+  const visibleKeys = Object.keys(filterRecordsBySpecialSourceContext(raw));
+  await deleteFavorites(visibleKeys);
 }
 
 // ---------------- 漫画书架 / 历史 API ----------------
