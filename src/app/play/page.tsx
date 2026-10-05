@@ -9816,17 +9816,33 @@ function PlayPageClient() {
             const backwardBtn = $el.querySelector('.seek-backward') as HTMLElement;
             const forwardBtn = $el.querySelector('.seek-forward') as HTMLElement;
 
-            // 快退5秒
+            // 按「快进/倒退时间」配置快退
             backwardBtn.onclick = () => {
               if (artPlayerRef.current) {
-                artPlayerRef.current.currentTime = Math.max(0, artPlayerRef.current.currentTime - 5);
+                artPlayerRef.current.currentTime = calculateSeekTime(
+                  artPlayerRef.current.currentTime,
+                  artPlayerRef.current.duration,
+                  -1,
+                  seekStepSecondsRef.current
+                );
+                artPlayerRef.current.notice.show = `快退 ${formatQuickForwardDuration(
+                  seekStepSecondsRef.current
+                )}`;
               }
             };
 
-            // 快进5秒
+            // 按「快进/倒退时间」配置快进
             forwardBtn.onclick = () => {
               if (artPlayerRef.current) {
-                artPlayerRef.current.currentTime = Math.min(artPlayerRef.current.duration, artPlayerRef.current.currentTime + 5);
+                artPlayerRef.current.currentTime = calculateSeekTime(
+                  artPlayerRef.current.currentTime,
+                  artPlayerRef.current.duration,
+                  1,
+                  seekStepSecondsRef.current
+                );
+                artPlayerRef.current.notice.show = `快进 ${formatQuickForwardDuration(
+                  seekStepSecondsRef.current
+                )}`;
               }
             };
 
