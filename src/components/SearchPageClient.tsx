@@ -7,11 +7,13 @@ import {
   Grid2x2,
   HardDrive,
   List,
+  ListVideo,
   Magnet,
   RefreshCw,
   Search,
   X,
 } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import React, {
   startTransition,
@@ -97,6 +99,8 @@ export function SearchPageClient({ searchBase = '/search' }: { searchBase?: stri
   );
   const [netdiskSearchEnabled, setNetdiskSearchEnabled] = useState(false);
   const [magnetSearchEnabled, setMagnetSearchEnabled] = useState(false);
+  // 源站寻片开关（/under 需要它的特殊源版本入口）
+  const [sourceSearchEnabled, setSourceSearchEnabled] = useState(false);
   const [privateLibrarySearchEnabled, setPrivateLibrarySearchEnabled] =
     useState(false);
   const [featureFlagsReady, setFeatureFlagsReady] = useState(false);
@@ -1073,6 +1077,8 @@ export function SearchPageClient({ searchBase = '/search' }: { searchBase?: stri
     const runtimeConfig = (window as any).RUNTIME_CONFIG || {};
     setNetdiskSearchEnabled(!!runtimeConfig.NETDISK_SEARCH_ENABLED);
     setMagnetSearchEnabled(!!runtimeConfig.MAGNET_SEARCH_ENABLED);
+    // 与首页口径一致：未显式关闭即为启用
+    setSourceSearchEnabled(runtimeConfig.ENABLE_SOURCE_SEARCH !== false);
     const hasPrivateLibrary = !!runtimeConfig.PRIVATE_LIBRARY_ENABLED;
     setPrivateLibrarySearchEnabled(hasPrivateLibrary);
     // 无私人影库权限时，强制关闭"只搜私人影库"（防止 localStorage 残留旧设置继续过滤）
@@ -1118,7 +1124,8 @@ export function SearchPageClient({ searchBase = '/search' }: { searchBase?: stri
       const savedPrivateLibraryOnly = localStorage.getItem(
         'searchPrivateLibraryOnly'
       );
-      if (savedPrivateLibraryOnly !== null) {
+      // /under 特殊源入口只搜影视源，一律关掉「只搜私人影库」（跳过 localStorage 恢复）
+      if (!isSpecialEntry && savedPrivateLibraryOnly !== null) {
         setPrivateLibraryOnly(savedPrivateLibraryOnly === 'true');
       }
       privateLibraryOnlyLoadedRef.current = true;
@@ -1895,6 +1902,23 @@ export function SearchPageClient({ searchBase = '/search' }: { searchBase?: stri
             </div>
           )}
 
+          {/* 特殊源入口（/under）：不挂网盘/磁力 tab，改为提供一个「源站寻片」
+              特殊源版本的入口；进入后只浏览/搜索特殊源。
+              href 直接写死 special=1：本块只在 /under 渲染，用
+              appendSpecialSourceParam 会在 SSR（无 window）与客户端首帧不一致 */}
+          {isSpecialEntry && sourceSearchEnabled && (
+            <div className='flex justify-center mt-6'>
+              <Link
+                href='/source-search?special=1'
+                prefetch={false}
+                className='inline-flex items-center gap-2 rounded-full border border-blue-200/60 bg-blue-50/80 px-4 py-2 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-100/80 dark:border-blue-800/60 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40'
+              >
+                <ListVideo size={16} />
+                源站寻片
+              </Link>
+            </div>
+          )}
+
           {activeTab === 'pansou' &&
             netdiskSearchEnabled &&
             renderPansouCloudTypeFilter()}
@@ -1952,7 +1976,7 @@ export function SearchPageClient({ searchBase = '/search' }: { searchBase?: stri
                         <div className='absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform peer-checked:translate-x-4'></div>
                       </div>
                     </label>
-                    {privateLibrarySearchEnabled && (
+                    {privateLibrarySearchEnabled && !isSpecialEntry && (
                       <label className='flex cursor-pointer select-none items-center justify-between gap-3 rounded-lg px-1 py-2'>
                         <span className='text-sm text-gray-700 dark:text-gray-300'>
                           只搜私人影库
@@ -2191,7 +2215,7 @@ export function SearchPageClient({ searchBase = '/search' }: { searchBase?: stri
                               <div className='absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform peer-checked:translate-x-4'></div>
                             </div>
                           </label>
-                          {privateLibrarySearchEnabled && (
+                          {privateLibrarySearchEnabled && !isSpecialEntry && (
                             <label className='flex cursor-pointer select-none items-center justify-between gap-3 rounded-lg px-1 py-2'>
                               <span className='text-sm text-gray-700 dark:text-gray-300'>
                                 只搜私人影库
