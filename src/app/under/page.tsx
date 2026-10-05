@@ -4,7 +4,7 @@ import { Suspense } from 'react';
 
 import { SPECIAL_SOURCE_COOKIE } from '@/lib/special-source.client';
 
-import { SearchPageClient } from '@/app/search/page';
+import { SearchPageClient } from '@/components/SearchPageClient';
 
 export const dynamic = 'force-dynamic';
 
